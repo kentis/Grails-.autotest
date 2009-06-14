@@ -1,10 +1,10 @@
-Autotest.add_hook :initialize do |at|
-  at.clear_mappings
+#Autotest.add_hook :initialize do |at|
+#  at.clear_mappings
+#	
+#  at.add_mapping(/.*Controller\.groovy$/){ |f, _| f.sub(/Controller\.groovy/, '').sub(/.*\//, '') }
 	
-  at.add_mapping(/.*Controller\.groovy$/){ |f, _| f.sub(/Controller\.groovy/, '').sub(/.*\//, '') }
-	
-  at.add_mapping(%r%^test/integration/.*Tests\.groovy$%) {|filename, _| filename }
-end
+#  at.add_mapping(%r%^test/integration/.*Tests\.groovy$%) {|filename, _| filename }
+#end
 
 Autotest.add_hook :died do |at|
 	puts "DIED: #{$!.inspect}"
@@ -32,17 +32,21 @@ class Autotest
   end 
 
 	def make_test_cmd files_to_test
-		puts "making command for: #{files_to_test}"
+		puts "making command for:"
+		p files_to_test
 		cmds = []
 		full, partial = reorder(files_to_test).partition { |k,v| v.empty? }
 
-    classes = full.map {|k,v| k}.flatten.uniq
+    classes = full.map {|k,v| k}.flatten.uniq if partial.empty?
+		classes = partial.map {|k,v| k}.flatten.uniq unless partial.empty?
+
 		tests = []
 		puts "classes: #{classes.join(' ')}"
     classes.each { |f|
 				next unless f =~ /.*Tests\.groovy$/
-				tests << f.sub(/Tests\.groovy/, '').sub(/.*\//, '')
+				tests << f.sub(/Tests\.groovy/, '').sub(/.*\//, '').sub(/.*\./,'')
     }
+		tests.uniq!
 		puts "tests: #{tests}"
 		cmds << "grails test-app #{tests.join(' ')}"
 
@@ -50,9 +54,37 @@ class Autotest
   end
 
 	def handle_results(results)
-		#puts results
-		self.files_to_test = new_hash_of_arrays
 		
+		begin
+			units =  results.scan(/Starting unit tests(.*)Starting integration tests/m)[0][0].scan(/Running \d* \w+ test\w?\.\.\.\s(.*)\sTests Completed/m)[0]
+			integrations = results.scan(/Starting integration tests(.*)/m)[0][0].scan(/Running \d* \w+ test\w?\.\.\.\s(.*)\sTests Completed/m)[0]
+			texts = []
+			texts += units if units
+			texts += integrations if integrations
+			p texts
+			self.files_to_test = handle_grails_result_output( texts )
+		rescue
+			p $!
+			self.files_to_test = new_hash_of_arrays
+		end
+		p self.files_to_test
+	end
+
+	def handle_grails_result_output(results)
+		filters = new_hash_of_arrays
+		current_test = ""
+		results.each { |result_texts|
+			result_texts.each_line { |line|
+				if(line =~ /^\s+/) then  #line starts with whitespace contais a result
+					unless line =~ /.*SUCCESS$/ then
+						filters["test/integration/#{current_test}.groovy"] = line.strip().sub(/\..*/,"")
+					end	
+				else
+					current_test = line.scan(/Running test (.+)\.\.\./)[0][0]
+				end
+			}
+		}
+		filters
 	end
 
 
@@ -105,18 +137,18 @@ class Autotest
 
 
 
-	def all_good
+#	def all_good
 #		puts "files_to_test.empty?: #{files_to_test.empty?}"
 #		puts "files_to_test: #{files_to_test}"
-    files_to_test.empty?
-  end
+#    files_to_test.empty?
+#  end
 
-	def get_to_green
-		puts "STARTING GET_TO_GREEN!!!!"
-    begin
-      run_tests
-      wait_for_changes unless all_good
-    end until all_good
-  end
+#	def get_to_green
+#		puts "STARTING GET_TO_GREEN!!!!"
+#    begin
+#      run_tests
+#      wait_for_changes unless all_good
+#    end until all_good
+#  end
 
 end
