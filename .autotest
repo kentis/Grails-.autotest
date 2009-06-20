@@ -9,18 +9,19 @@ end
 #
 class Autotest
 
+	##
+	# Finding the right tests for changed files
+	#
 	def test_files_for(filename)
 		if filename =~ /.*Controller.groovy$/ 
-			puts "in if"
 			f = filename.sub(/\.groovy/, '').sub(/.*\//, '')
-
 			return Dir["test/**/#{f}Tests.groovy"]
 		end
 	
     return Dir["test/**/*.groovy"]
   end 
 
-	def make_test_cmd files_to_test
+	def make_test_cmd(files_to_test)
 		cmds = []
 		full, partial = reorder(files_to_test).partition { |k,v| v.empty? }
 
@@ -89,7 +90,7 @@ class Autotest
         next if f =~ /(swp|~|rej|orig)$/ # temporary/patch files
         next if f =~ /\/\.?#/            # Emacs autosave/cvs merge files
 				next unless f =~ /.*\.groovy$/
-        filename = f.sub(/^\.\//, '')
+       filename = f.sub(/^\.\//, '')
 
         result[filename] = File.stat(filename).mtime rescue next
         order << filename
